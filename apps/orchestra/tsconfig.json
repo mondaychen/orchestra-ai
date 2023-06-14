@@ -1,0 +1,9 @@
+{
+  "extends": "tsconfig/base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "target": "ES6"
+  },
+  "include": ["index.ts", "src/**/*"],
+  "exclude": ["dist", "build", "node_modules"]
+}
