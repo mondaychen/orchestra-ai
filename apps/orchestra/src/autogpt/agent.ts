@@ -200,31 +200,30 @@ export class AutoGPT {
       if (action.name === FINISH_NAME) {
         return action.args.response;
       }
-      if (action.name === HUMAN_TOOL_NAME) {
-        const humanInput = await onRequestHumanInput(action.args.input);
-        if (!humanInput) {
-          this.fullMessageHistory.push(
-            new SystemChatMessage("Error: No human input received.")
-          );
-          continue;
-        } else if (humanInput === "stop" || humanInput === "quit") {
-          console.log("EXITING");
-          return "EXITING";
-        } else {
-          this.fullMessageHistory.push(
-            new HumanChatMessage(`${humanInput}\n`)
-          );
-          continue;
-        }
-      }
       let result: string;
       if (action.name in tools) {
-        const tool = tools[action.name];
         let observation;
+        const tool = tools[action.name];
         try {
-          observation = await tool.call(action.args);
+          // handle human input as a special case
+          if (tool === humanAsTool) {
+            const humanInput = await onRequestHumanInput(action.args.input);
+            // empty response or timeout
+            if (!humanInput) {
+              // throw "No human input received.";
+              // GPT-4 would just keep ask for human input after getting the error, let's just exit here
+              return "EXITING (no human input received)";
+            } else if (humanInput === "stop" || humanInput === "quit") {
+              console.log("EXITING");
+              return "EXITING";
+            } else {
+              observation = humanInput;
+            }
+          } else {
+            observation = await tool.call(action.args);
+          }
         } catch (e) {
-          observation = `Error in args: ${e}`;
+          observation = `Error: ${e}`;
         }
         result = `Command ${tool.name} returned: ${observation}`;
       } else if (action.name === "ERROR") {

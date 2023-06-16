@@ -23,7 +23,7 @@ const vectorStore = new HNSWLib(new OpenAIEmbeddings(), {
 
 const chatOpenAI = new ChatOpenAI({
   temperature: 0,
-  modelName: "gpt-4",
+  modelName: "gpt-3.5",
   verbose: true
 });
 

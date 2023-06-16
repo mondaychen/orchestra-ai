@@ -44,7 +44,6 @@ export class PromptGenerator {
     output += `, args json schema: ${JSON.stringify(
       (zodToJsonSchema(tool.schema) as JsonSchema7ObjectType).properties
     )}`;
-    console.log(tool, output);
     return output;
   }
 
@@ -81,7 +80,6 @@ export class PromptGenerator {
       null,
       4
     );
-    console.log(this.commands);
     const prompt_string =
       `Constraints:\n${this._generate_numbered_list(this.constraints)}\n\n` +
       `Commands:\n${this._generate_numbered_list(
