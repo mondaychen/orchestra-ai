@@ -47,11 +47,9 @@ export class AutoGPTPrompt
   }
 
   constructFullPrompt(goals: string[]): string {
-    const promptStart = `Your decisions must always be made independently 
-            without seeking user assistance. Play to your strengths 
-            as an LLM and pursue simple strategies with no legal complications. 
-            If you have completed all your tasks, 
-            make sure to use the "finish" command.`;
+    const promptStart = `Play to your strengths as an LLM and pursue simple strategies with no legal complications.
+            Use your best judgement on when to make decisions independently or seek user assistance.
+            If you have completed all your tasks, make sure to use the "finish" command.`;
 
     let fullPrompt = `You are ${this.aiName}, ${this.aiRole}\n${promptStart}\n\nGOALS:\n\n`;
     goals.forEach((goal, index) => {

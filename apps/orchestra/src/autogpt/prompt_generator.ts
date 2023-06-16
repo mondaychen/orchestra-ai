@@ -44,6 +44,7 @@ export class PromptGenerator {
     output += `, args json schema: ${JSON.stringify(
       (zodToJsonSchema(tool.schema) as JsonSchema7ObjectType).properties
     )}`;
+    console.log(tool, output);
     return output;
   }
 
@@ -80,6 +81,7 @@ export class PromptGenerator {
       null,
       4
     );
+    console.log(this.commands);
     const prompt_string =
       `Constraints:\n${this._generate_numbered_list(this.constraints)}\n\n` +
       `Commands:\n${this._generate_numbered_list(
@@ -111,7 +113,7 @@ export function getPrompt(tools: ObjectTool[]): string {
       "or want to recall past events, " +
       "thinking about similar events will help you remember."
   );
-  prompt_generator.add_constraint("No user assistance");
+  // prompt_generator.add_constraint("No user assistance");
   prompt_generator.add_constraint(
     'Exclusively use the commands listed in double quotes e.g. "command name"'
   );

@@ -1,13 +1,14 @@
 "use client";
 
 import { Button, Header } from "ui";
-import { useEffect } from "react";
-import {io} from "socket.io-client";
+import { useEffect, useState, useRef } from "react";
+import {io, Socket} from "socket.io-client";
 
 export default function Page() {
-  let socket;
+  const socketRef = useRef<Socket>();
   useEffect(() => {
-    socket = io('ws://127.0.0.1:3044');
+    socketRef.current = io('ws://127.0.0.1:3044');
+    const socket = socketRef.current;
     socket.on("connect", () => {
       console.log("connected");
     });
@@ -17,20 +18,40 @@ export default function Page() {
     socket.on("conductor:output", (data) => {
       console.log(data);
     });
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
-  function handleClick() {
+  const [input, setInput] = useState("");
+
+  function start() {
+    const socket = socketRef.current;
     if (socket == null || socket.disconnected) {
       console.error("socket is not connected");
       return;
     }
-    socket.emit("user:input", "write a weather report for SF today");
+    socket.emit("user:input", "write a weather report for my city");
+  }
+
+  function onReply(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const socket = socketRef.current;
+    if (socket == null || socket.disconnected) {
+      console.error("socket is not connected");
+      return;
+    }
+    socket.emit("user:reply", input);
   }
 
   return (
     <>
       <Header text="Web" />
-      <Button onClick={handleClick} />
+      <Button onClick={start} />
+      <form onSubmit={onReply}>
+        <input type="text" value={input} onChange={(e) => setInput(e.target.value)} />
+        <button type="submit">respond</button>
+      </form>
     </>
   );
 }

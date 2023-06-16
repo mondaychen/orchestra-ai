@@ -1,7 +1,7 @@
 import { LLMChain } from "langchain/chains";
 import { BaseChatModel } from "langchain/chat_models/base.js";
 import { VectorStoreRetriever } from "langchain/vectorstores/base.js";
-import { Tool } from "langchain/tools";
+import { Tool, DynamicTool } from "langchain/tools";
 
 import { AutoGPTOutputParser } from "./output_parser";
 import { AutoGPTPrompt } from "./prompt";
@@ -55,6 +55,15 @@ export const getModelContextSize = (modelName: string): number => {
   }
 };
 
+const HUMAN_TOOL_NAME = "request-human-input";
+const humanAsTool = new DynamicTool({
+  name: HUMAN_TOOL_NAME,
+  description: `You can ask a human for additional input or guidance when you think you
+  got stuck or you are not sure what to do next.
+  The input should be a question for the human, along with necessary context.`,
+  func: (_input) => new Promise((resolve) => resolve("")),
+});
+
 export interface AutoGPTInput {
   aiName: string;
   aiRole: string;
@@ -64,7 +73,11 @@ export interface AutoGPTInput {
   maxIterations?: number;
 }
 
+type AutoGPTState = "idle" | "running" | "finished";
+
 export class AutoGPT {
+  state: AutoGPTState;
+
   aiName: string;
 
   memory: VectorStoreRetriever;
@@ -99,6 +112,7 @@ export class AutoGPT {
     tools: ObjectTool[];
     feedbackTool?: Tool;
   }) {
+    this.state = "idle";
     this.aiName = aiName;
     this.memory = memory;
     this.fullMessageHistory = [];
@@ -131,10 +145,11 @@ export class AutoGPT {
       outputParser = new AutoGPTOutputParser(),
     }: AutoGPTInput
   ): AutoGPT {
+    const toolsWithHuman = [...tools, humanAsTool];
     const prompt = new AutoGPTPrompt({
       aiName,
       aiRole,
-      tools,
+      tools: toolsWithHuman,
       tokenCounter: llm.getNumTokens.bind(llm),
       sendTokenLimit: getModelContextSize(
         "modelName" in llm ? (llm.modelName as string) : "gpt2"
@@ -147,14 +162,18 @@ export class AutoGPT {
       memory,
       chain,
       outputParser,
-      tools,
+      tools: toolsWithHuman,
       // feedbackTool,
       maxIterations,
     });
   }
 
-  async run(goals: string[]): Promise<string | undefined> {
-    const user_input =
+  async run(
+    goals: string[],
+    onUpdate: (data: Object) => void,
+    onRequestHumanInput: (question: string) => Promise<string | undefined>
+  ): Promise<string | undefined> {
+    const user_input_next_step =
       "Determine which next command to use, and respond using the format specified above:";
     let loopCount = 0;
     while (loopCount < this.maxIterations) {
@@ -162,23 +181,41 @@ export class AutoGPT {
 
       const { text: assistantReply } = await this.chain.call({
         goals,
-        user_input,
+        user_input: user_input_next_step,
         memory: this.memory,
         messages: this.fullMessageHistory,
       });
 
       // Print the assistant reply
       console.log(assistantReply);
-      this.fullMessageHistory.push(new HumanChatMessage(user_input));
+      this.fullMessageHistory.push(new HumanChatMessage(user_input_next_step));
       this.fullMessageHistory.push(new AIChatMessage(assistantReply));
 
       const action = await this.outputParser.parse(assistantReply);
+      onUpdate(action);
       const tools = this.tools.reduce(
         (acc, tool) => ({ ...acc, [tool.name]: tool }),
         {} as { [key: string]: ObjectTool }
       );
       if (action.name === FINISH_NAME) {
         return action.args.response;
+      }
+      if (action.name === HUMAN_TOOL_NAME) {
+        const humanInput = await onRequestHumanInput(action.args.input);
+        if (!humanInput) {
+          this.fullMessageHistory.push(
+            new SystemChatMessage("Error: No human input received.")
+          );
+          continue;
+        } else if (humanInput === "stop" || humanInput === "quit") {
+          console.log("EXITING");
+          return "EXITING";
+        } else {
+          this.fullMessageHistory.push(
+            new HumanChatMessage(`${humanInput}\n`)
+          );
+          continue;
+        }
       }
       let result: string;
       if (action.name in tools) {
@@ -195,9 +232,12 @@ export class AutoGPT {
       } else {
         result = `Unknown command '${action.name}'. Please refer to the 'COMMANDS' list for available commands and only respond in the specified JSON format.`;
       }
+      onUpdate({
+        action: action.name,
+        result,
+      });
 
       let memoryToAdd = `Assistant Reply: ${assistantReply}\nResult: ${result} `;
-      console.log(memoryToAdd);
       if (this.feedbackTool) {
         const feedback = `\n${await this.feedbackTool.call("Input: ")}`;
         if (feedback === "q" || feedback === "stop") {

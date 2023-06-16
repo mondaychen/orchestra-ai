@@ -1,6 +1,6 @@
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
 
-import { autogpt } from "./conductor";
+import { createAgent } from "./conductor";
 
 export function initServer() {
   const io = new Server({
@@ -9,20 +9,67 @@ export function initServer() {
     },
   });
 
-  function run(msg: string) {
-    console.log('running autogpt with message: ', msg);
-    autogpt.run([msg]).then((response) => {
-      console.log("final response: ", response);
-      io.emit("conductor:output", response);
-    }).catch((err) => {
-      console.error(err);
+  function onUpdate(socket: Socket, data: Object) {
+    socket.emit("conductor:output", {
+      type: "update",
+      data,
     });
+  }
+
+  function waitForUserInput(socket: Socket, timeout: number): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
+      const onUserReply = (msg: string) => {
+        socket.off("user:reply", onUserReply); // Remove the listener
+        resolve(msg);
+      };
+
+      socket.on("user:reply", onUserReply);
+
+      setTimeout(() => {
+        socket.off("user:reply", onUserReply); // Remove the listener
+        reject(new Error("Timeout waiting for user input"));
+      }, timeout);
+    });
+  }
+
+  async function onRequestHumanInput(
+    message: string,
+    socket: Socket
+  ): Promise<string | undefined> {
+    socket.emit("conductor:output", { type: "request-human-input", message });
+    try {
+      const userInput = await waitForUserInput(socket, 2 * 60000); // Wait for user input for up to 2 minutes
+      return userInput;
+    } catch (err) {
+      console.error(err);
+      return undefined; // Return empty string if timeout or error occurs
+    }
+  }
+
+  function run(socket: Socket, goal: string) {
+    console.log("running autogpt with goal: ", goal);
+    createAgent()
+      .run(
+        [goal],
+        (data) => onUpdate(socket, data),
+        (message: string) => onRequestHumanInput(message, socket)
+      )
+      .then((response) => {
+        console.log("final response: ", response);
+        socket.emit("conductor:output", {
+          type: "final-response",
+          content: response,
+        });
+      })
+      .catch((err) => {
+        console.error(err);
+      });
   }
 
   io.on("connection", (socket) => {
     console.log("a user connected");
     socket.on("user:input", (msg) => {
-      run(msg);
+      run(socket, msg);
     });
     socket.on("disconnect", () => {
       console.log("user disconnected");
@@ -30,5 +77,5 @@ export function initServer() {
   });
 
   io.listen(3044);
-  console.log('SocketIO server listening on port 3009');
+  console.log("SocketIO server listening on ws://127.0.0.1:3044");
 }
