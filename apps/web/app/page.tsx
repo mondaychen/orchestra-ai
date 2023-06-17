@@ -6,23 +6,28 @@ import "primeflex/primeflex.css";
 import "primereact/resources/themes/mdc-light-indigo/theme.css";
 //core
 import "primereact/resources/primereact.min.css";
-import 'primeicons/primeicons.css';
-        
+import "primeicons/primeicons.css";
+
 import "./global.css";
 
 import { useEffect, useState, useRef } from "react";
-import Chatbox from './components/chatbox';
+import Chatbox from "./components/chatbox";
 import type { ChatMessage, Status } from "./components/chatbox";
-        
+import ActionHistory from "./components/ActionHistory";
+import type { Action } from "./components/ActionHistory";
+
 import { io, Socket } from "socket.io-client";
 
 export default function Page() {
   const socketRef = useRef<Socket>();
   const [status, setStatus] = useState<Status>("disconnected");
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([{
-    type: "conductor",
-    content: "Hello. What can I do for you?",
-  }]);
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
+    {
+      type: "conductor",
+      content: "Hello. What can I do for you?",
+    },
+  ]);
+  const [actions, setActions] = useState<Action[]>([]);
   useEffect(() => {
     socketRef.current = io("ws://127.0.0.1:3044");
     const socket = socketRef.current;
@@ -37,10 +42,19 @@ export default function Page() {
     socket.on("conductor:output", (data) => {
       if (data.type === "request-human-input") {
         setStatus("pending-input");
-        setChatHistory((prev) => [...prev, { type: "conductor", content: data.content }]);
+        setChatHistory((prev) => [
+          ...prev,
+          { type: "conductor", content: data.content },
+        ]);
       } else if (data.type === "final-response") {
-        setStatus("done");
-        setChatHistory((prev) => [...prev, { type: "conductor", content: data.content }]);
+        setStatus("idle");
+        setChatHistory((prev) => [
+          ...prev,
+          { type: "conductor", content: data.content },
+        ]);
+      } else if (data.type === "update") {
+        console.log(data.data);
+        setActions(prev => [...prev, data.data]);
       }
     });
     return () => {
@@ -55,7 +69,7 @@ export default function Page() {
       return;
     }
     socket.emit("user:input", input);
-    
+
     setStatus("pending-output");
     setChatHistory((prev) => [...prev, { type: "user", content: input }]);
   }
@@ -73,17 +87,20 @@ export default function Page() {
 
   return (
     <>
-    <h1>AutoGPT, but instructable</h1>
-    <div className="grid">
-      <div className="col-fixed w-5">
-        <Chatbox
-          status={status}
-          onStart={start}
-          onReply={onReply}
-          chatHistory={chatHistory}
-        />
+      <h1>AutoGPT, but instructable</h1>
+      <div className="grid">
+        <div className="col-fixed" style={{width: '500px'}}>
+          <Chatbox
+            status={status}
+            onStart={start}
+            onReply={onReply}
+            chatHistory={chatHistory}
+          />
+        </div>
+        <div className="col">
+          <ActionHistory actions={actions} />
+        </div>
       </div>
-    </div>
     </>
   );
 }

@@ -185,9 +185,9 @@ export class AutoGPT {
     let loopCount = 0;
     while (loopCount < this.maxIterations) {
       // stop() was called
-      // if (this.state === "idle") {
-      //   return undefined; 
-      // }
+      if (this.state !== "running") {
+        return undefined; 
+      }
       loopCount += 1;
 
       const { text: assistantReply } = await this.chain.call({
@@ -203,7 +203,11 @@ export class AutoGPT {
       this.fullMessageHistory.push(new AIChatMessage(assistantReply));
 
       const action = await this.outputParser.parse(assistantReply);
-      onUpdate(action);
+      onUpdate({
+        type: "action:start",
+        action,
+        rawResponse: assistantReply,
+      });
       const tools = this.tools.reduce(
         (acc, tool) => ({ ...acc, [tool.name]: tool }),
         {} as { [key: string]: ObjectTool }
@@ -245,7 +249,9 @@ export class AutoGPT {
         result = `Unknown command '${action.name}'. Please refer to the 'COMMANDS' list for available commands and only respond in the specified JSON format.`;
       }
       onUpdate({
-        action: action.name,
+        type: "action:end",
+        action,
+        rawResponse: assistantReply,
         result,
       });
 
