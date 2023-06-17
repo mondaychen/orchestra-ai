@@ -76,10 +76,11 @@ export interface AutoGPTInput {
   maxIterations?: number;
 }
 
-type AutoGPTState = "idle" | "paused" | "running" | "finished";
-
 export class AutoGPT {
-  state: AutoGPTState;
+  private running: boolean = false;
+  private paused: boolean = false;
+  private pausePromise: Promise<void> | null = null;
+  private pauseResolve: (() => void) | null = null;
 
   aiName: string;
 
@@ -115,7 +116,6 @@ export class AutoGPT {
     tools: ObjectTool[];
     feedbackTool?: Tool;
   }) {
-    this.state = "idle";
     this.aiName = aiName;
     this.memory = memory;
     this.fullMessageHistory = [];
@@ -172,7 +172,21 @@ export class AutoGPT {
   }
 
   stop(): void {
-    this.state = "idle";
+    this.running = false;
+  }
+
+  public pause(): void {
+    this.paused = true;
+    this.pausePromise = new Promise((resolve) => {
+      this.pauseResolve = resolve;
+    });
+  }
+
+  public resume(): void {
+    this.paused = false;
+    if (this.pauseResolve) {
+      this.pauseResolve();
+    }
   }
 
   async run(
@@ -180,13 +194,16 @@ export class AutoGPT {
     onUpdate: (data: Object) => void,
     onRequestHumanInput: (question: string) => Promise<string | undefined>
   ): Promise<string | undefined> {
-    this.state = "running";
+    this.running = true;
+    this.paused = false;
 
     let loopCount = 0;
-    while (loopCount < this.maxIterations) {
-      // stop() was called
-      if (this.state !== "running") {
-        return undefined; 
+    while (this.running && loopCount < this.maxIterations) {
+      if (this.paused) {
+        await this.pausePromise;
+        this.pausePromise = null;
+        this.pauseResolve = null;
+        continue;
       }
       loopCount += 1;
 
@@ -213,7 +230,7 @@ export class AutoGPT {
         {} as { [key: string]: ObjectTool }
       );
       if (action.name === FINISH_NAME) {
-        this.state = "finished";
+        this.running = false;
         return action.args.response;
       }
       let result: string;
@@ -231,7 +248,7 @@ export class AutoGPT {
               return "EXITING (no human input received)";
             } else if (humanInput === "stop" || humanInput === "quit") {
               console.log("EXITING");
-              this.state = "finished";
+              this.running = false;
               return "EXITING";
             } else {
               observation = humanInput;
@@ -261,7 +278,7 @@ export class AutoGPT {
       this.fullMessageHistory.push(new SystemChatMessage(result));
     }
 
-    this.state = "finished";
+    this.running = false;
     return undefined;
   }
 }

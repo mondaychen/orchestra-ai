@@ -86,6 +86,20 @@ export function initServer() {
     }
   }
 
+  function pauseAgentRun(socket: Socket) {
+    const agent = agents.get(socket.id);
+    if (agent) {
+      agent.pause();
+    }
+  }
+
+  function resumeAgentRun(socket: Socket) {
+    const agent = agents.get(socket.id);
+    if (agent) {
+      agent.resume();
+    }
+  }
+
   io.on("connection", (socket) => {
     console.log("a user connected");
     socket.on("user:input", (msg) => {
@@ -93,6 +107,12 @@ export function initServer() {
     });
     socket.on("user:stop", () => {
       stopAgentRun(socket);
+    });
+    socket.on("user:pause", () => {
+      pauseAgentRun(socket);
+    });
+    socket.on("user:resume", () => {
+      resumeAgentRun(socket);
     });
     socket.on("disconnect", () => {
       console.log("user disconnected");

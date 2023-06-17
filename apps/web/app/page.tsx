@@ -85,6 +85,24 @@ export default function Page() {
     setChatHistory((prev) => [...prev, { type: "user", content: input }]);
   }
 
+  function onPause() {
+    const socket = socketRef.current;
+    if (socket == null || socket.disconnected) {
+      console.error("socket is not connected");
+      return;
+    }
+    socket.emit("user:pause");
+  }
+
+  function onResume() {
+    const socket = socketRef.current;
+    if (socket == null || socket.disconnected) {
+      console.error("socket is not connected");
+      return;
+    }
+    socket.emit("user:resume");
+  }
+
   return (
     <>
       <h1>AutoGPT, but instructable</h1>
@@ -98,7 +116,7 @@ export default function Page() {
           />
         </div>
         <div className="col">
-          <ActionHistory actions={actions} />
+          <ActionHistory actions={actions} onPause={onPause} onResume={onResume}/>
         </div>
       </div>
     </>

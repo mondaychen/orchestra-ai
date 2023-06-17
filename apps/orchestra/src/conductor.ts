@@ -16,18 +16,17 @@ const tools = [
   }),
 ];
 
-const vectorStore = new HNSWLib(new OpenAIEmbeddings(), {
-  space: "cosine",
-  numDimensions: 1536,
-});
-
-const chatOpenAI = new ChatOpenAI({
-  temperature: 0,
-  modelName: "gpt-3.5-turbo",
-  verbose: true
-});
-
 export function createAgent() {
+  const vectorStore = new HNSWLib(new OpenAIEmbeddings(), {
+    space: "cosine",
+    numDimensions: 1536,
+  });
+  
+  const chatOpenAI = new ChatOpenAI({
+    temperature: 0,
+    modelName: "gpt-4",
+    verbose: true
+  });
   return AutoGPT.fromLLMAndTools(
     chatOpenAI,
     tools,
