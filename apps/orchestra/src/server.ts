@@ -2,6 +2,8 @@ import { Server, Socket } from "socket.io";
 
 import { createAgent } from "./conductor";
 
+const agents = new Map<string, ReturnType<typeof createAgent>>();
+
 export function initServer() {
   const io = new Server({
     cors: {
@@ -36,7 +38,10 @@ export function initServer() {
     message: string,
     socket: Socket
   ): Promise<string | undefined> {
-    socket.emit("conductor:output", { type: "request-human-input", message });
+    socket.emit("conductor:output", {
+      type: "request-human-input",
+      content: message,
+    });
     try {
       const userInput = await waitForUserInput(socket, 2 * 60000); // Wait for user input for up to 2 minutes
       return userInput;
@@ -47,8 +52,14 @@ export function initServer() {
   }
 
   function run(socket: Socket, goal: string) {
+    if (agents.has(socket.id)) {
+      console.warn('Agent already running for socket id: ', socket.id);
+      return;
+    }
     console.log("running autogpt with goal: ", goal);
-    createAgent()
+    const agent = createAgent();
+    agents.set(socket.id, agent);
+    agent
       .run(
         [goal],
         (data) => onUpdate(socket, data),
@@ -60,16 +71,28 @@ export function initServer() {
           type: "final-response",
           content: response,
         });
+        agents.delete(socket.id);
       })
       .catch((err) => {
         console.error(err);
       });
   }
 
+  function stopAgentRun(socket: Socket) {
+    const agent = agents.get(socket.id);
+    if (agent) {
+      agent.stop();
+      agents.delete(socket.id);
+    }
+  }
+
   io.on("connection", (socket) => {
     console.log("a user connected");
     socket.on("user:input", (msg) => {
       run(socket, msg);
+    });
+    socket.on("user:stop", () => {
+      stopAgentRun(socket);
     });
     socket.on("disconnect", () => {
       console.log("user disconnected");

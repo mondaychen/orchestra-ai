@@ -15,6 +15,9 @@ import {
 import { ObjectTool, FINISH_NAME } from "./schema";
 import { TokenTextSplitter } from "langchain/text_splitter";
 
+const user_input_next_step =
+"Determine which next command to use, and respond using the format specified above:";
+
 // getEmbeddingContextSize and getModelContextSize are not exported by langchain
 // copied from langchain/src/base_language/count_tokens.ts
 export const getEmbeddingContextSize = (modelName?: string): number => {
@@ -73,7 +76,7 @@ export interface AutoGPTInput {
   maxIterations?: number;
 }
 
-type AutoGPTState = "idle" | "running" | "finished";
+type AutoGPTState = "idle" | "paused" | "running" | "finished";
 
 export class AutoGPT {
   state: AutoGPTState;
@@ -168,15 +171,23 @@ export class AutoGPT {
     });
   }
 
+  stop(): void {
+    this.state = "idle";
+  }
+
   async run(
     goals: string[],
     onUpdate: (data: Object) => void,
     onRequestHumanInput: (question: string) => Promise<string | undefined>
   ): Promise<string | undefined> {
-    const user_input_next_step =
-      "Determine which next command to use, and respond using the format specified above:";
+    this.state = "running";
+
     let loopCount = 0;
     while (loopCount < this.maxIterations) {
+      // stop() was called
+      // if (this.state === "idle") {
+      //   return undefined; 
+      // }
       loopCount += 1;
 
       const { text: assistantReply } = await this.chain.call({
@@ -198,6 +209,7 @@ export class AutoGPT {
         {} as { [key: string]: ObjectTool }
       );
       if (action.name === FINISH_NAME) {
+        this.state = "finished";
         return action.args.response;
       }
       let result: string;
@@ -215,6 +227,7 @@ export class AutoGPT {
               return "EXITING (no human input received)";
             } else if (humanInput === "stop" || humanInput === "quit") {
               console.log("EXITING");
+              this.state = "finished";
               return "EXITING";
             } else {
               observation = humanInput;
@@ -237,20 +250,12 @@ export class AutoGPT {
       });
 
       let memoryToAdd = `Assistant Reply: ${assistantReply}\nResult: ${result} `;
-      if (this.feedbackTool) {
-        const feedback = `\n${await this.feedbackTool.call("Input: ")}`;
-        if (feedback === "q" || feedback === "stop") {
-          console.log("EXITING");
-          return "EXITING";
-        }
-        memoryToAdd += feedback;
-      }
-
       const documents = await this.textSplitter.createDocuments([memoryToAdd]);
       await this.memory.addDocuments(documents);
       this.fullMessageHistory.push(new SystemChatMessage(result));
     }
 
+    this.state = "finished";
     return undefined;
   }
 }
