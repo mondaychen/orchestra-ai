@@ -5,7 +5,8 @@ import { useState } from "react";
 export type Action = {
   type: "action:end" | "action:start";
   rawResponse: string;
-  action: Object;
+  thoughts?: Object;
+  command: Object;
   result?: string;
 };
 
@@ -43,14 +44,28 @@ export default function ActionHistory({
         >
           {action.type === "action:start" ? (
             <div className="start">
-              <h3>Action: {action.action["name"]}</h3>
+              <h3>Action: {action.command["name"]}</h3>
+              {
+                action.thoughts != null && (
+                  <div>
+                    <div className="mb-2">
+                      <b>Thoughts:</b>
+                    </div>
+                    <CodeMirror
+                      width="800px"
+                      editable={false}
+                      value={JSON.stringify(action.thoughts, null, 2)}
+                    />
+                  </div>
+                )
+              }
               <div className="mb-2">
-                <b>Action:</b>
+                <b>Command:</b>
               </div>
               <CodeMirror
-                width="700px"
+                width="800px"
                 editable={false}
-                value={JSON.stringify(action.action, null, 2)}
+                value={JSON.stringify(action.command, null, 2)}
               />
             </div>
           ) : (

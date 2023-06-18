@@ -1,5 +1,5 @@
 import { BaseOutputParser } from "langchain/schema/output_parser";
-import { AutoGPTAction } from "./schema";
+import { AutoGPTReply } from "./schema";
 
 export function preprocessJsonInput(inputStr: string): string {
   // Replace single backslashes with double backslashes,
@@ -11,15 +11,16 @@ export function preprocessJsonInput(inputStr: string): string {
   return correctedStr;
 }
 
-export class AutoGPTOutputParser extends BaseOutputParser<AutoGPTAction> {
+export class AutoGPTOutputParser extends BaseOutputParser<AutoGPTReply> {
   lc_namespace = ["langchain", "experimental", "autogpt"];
 
   getFormatInstructions(): string {
     throw new Error("Method not implemented.");
   }
 
-  async parse(text: string): Promise<AutoGPTAction> {
+  async parse(text: string): Promise<AutoGPTReply> {
     let parsed: {
+      thoughts?: Object;
       command: {
         name: string;
         args: Record<string, unknown>;
@@ -33,20 +34,27 @@ export class AutoGPTOutputParser extends BaseOutputParser<AutoGPTAction> {
         parsed = JSON.parse(preprocessedText);
       } catch (error) {
         return {
-          name: "ERROR",
-          args: { error: `Could not parse invalid json: ${text}` },
+          command: {
+            name: "ERROR",
+            args: { error: `Could not parse invalid json: ${text}` },
+          },
         };
       }
     }
     try {
       return {
-        name: parsed.command.name,
-        args: parsed.command.args,
+        thoughts: parsed.thoughts,
+        command: {
+          name: parsed.command.name,
+          args: parsed.command.args,
+        },
       };
     } catch (error) {
       return {
-        name: "ERROR",
-        args: { error: `Incomplete command args: ${parsed}` },
+        command: {
+          name: "ERROR",
+          args: { error: `Incomplete command args: ${parsed}` },
+        },
       };
     }
   }

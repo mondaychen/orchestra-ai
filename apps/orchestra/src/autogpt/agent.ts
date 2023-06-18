@@ -219,28 +219,29 @@ export class AutoGPT {
       this.fullMessageHistory.push(new HumanChatMessage(user_input_next_step));
       this.fullMessageHistory.push(new AIChatMessage(assistantReply));
 
-      const action = await this.outputParser.parse(assistantReply);
+      const {command, thoughts} = await this.outputParser.parse(assistantReply);
       onUpdate({
         type: "action:start",
-        action,
+        command,
+        thoughts,
         rawResponse: assistantReply,
       });
       const tools = this.tools.reduce(
         (acc, tool) => ({ ...acc, [tool.name]: tool }),
         {} as { [key: string]: ObjectTool }
       );
-      if (action.name === FINISH_NAME) {
+      if (command.name === FINISH_NAME) {
         this.running = false;
-        return action.args.response;
+        return command.args.response;
       }
       let result: string;
-      if (action.name in tools) {
+      if (command.name in tools) {
         let observation;
-        const tool = tools[action.name];
+        const tool = tools[command.name];
         try {
           // handle human input as a special case
           if (tool === humanAsTool) {
-            const humanInput = await onRequestHumanInput(action.args.input);
+            const humanInput = await onRequestHumanInput(command.args.input);
             // empty response or timeout
             if (!humanInput) {
               // throw "No human input received.";
@@ -254,20 +255,20 @@ export class AutoGPT {
               observation = humanInput;
             }
           } else {
-            observation = await tool.call(action.args);
+            observation = await tool.call(command.args);
           }
         } catch (e) {
           observation = `Error: ${e}`;
         }
         result = `Command ${tool.name} returned: ${observation}`;
-      } else if (action.name === "ERROR") {
-        result = `Error: ${action.args}. `;
+      } else if (command.name === "ERROR") {
+        result = `Error: ${command.args}. `;
       } else {
-        result = `Unknown command '${action.name}'. Please refer to the 'COMMANDS' list for available commands and only respond in the specified JSON format.`;
+        result = `Unknown command '${command.name}'. Please refer to the 'COMMANDS' list for available commands and only respond in the specified JSON format.`;
       }
       onUpdate({
         type: "action:end",
-        action,
+        command,
         rawResponse: assistantReply,
         result,
       });
