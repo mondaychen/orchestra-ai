@@ -3,11 +3,13 @@ import { Button } from "primereact/button";
 import { useState } from "react";
 
 export type Action = {
-  type: "action:end" | "action:start";
-  rawResponse: string;
-  thoughts?: Object;
-  command: Object;
-  result?: string;
+  userMessage: string | undefined;
+  assistantReply: string;
+  parsed: {
+    thoughts?: Object;
+    command: Object;
+  }
+  result?: string | undefined;
 };
 
 export default function ActionHistory({
@@ -47,10 +49,9 @@ export default function ActionHistory({
           className="action border-black-alpha-10 border-bottom-1 px-2 py-3"
           key={i}
         >
-          {action.type === "action:start" ? (
             <div className="start">
-              <h3>Action: {action.command["name"]}</h3>
-              {action.thoughts != null && (
+              <h3>Action: {action.parsed.command["name"]}</h3>
+              {action.parsed.thoughts != null && (
                 <div>
                   <div className="mb-2">
                     <b>Thoughts:</b>
@@ -58,7 +59,7 @@ export default function ActionHistory({
                   <CodeMirror
                     width="800px"
                     editable={false}
-                    value={JSON.stringify(action.thoughts, null, 2)}
+                    value={JSON.stringify(action.parsed.thoughts, null, 2)}
                   />
                 </div>
               )}
@@ -68,17 +69,16 @@ export default function ActionHistory({
               <CodeMirror
                 width="800px"
                 editable={false}
-                value={JSON.stringify(action.command, null, 2)}
+                value={JSON.stringify(action.parsed.command, null, 2)}
               />
             </div>
-          ) : (
+
             <div className="end">
               <div>
                 <b>Result:</b>
               </div>
               <p>{action.result}</p>
             </div>
-          )}
         </div>
       ))}
     </div>

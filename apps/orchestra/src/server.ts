@@ -59,10 +59,10 @@ export function initServer() {
     console.log("running autogpt with goal: ", goal);
     const agent = createAgent();
     agents.set(socket.id, agent);
+    agent.on('update', (data) => onUpdate(socket, data));
     agent
       .run(
         [goal],
-        (data) => onUpdate(socket, data),
         (message: string) => onRequestHumanInput(message, socket)
       )
       .then((response) => {
@@ -85,24 +85,17 @@ export function initServer() {
   function stopAgentRun(socket: Socket) {
     const agent = agents.get(socket.id);
     if (agent) {
-      agent.stop();
+      agent.stop('Cancelled by user');
       agents.delete(socket.id);
     }
   }
 
-  function pauseAgentRun(socket: Socket) {
-    const agent = agents.get(socket.id);
-    if (agent) {
-      agent.pause();
-    }
-  }
-
-  function resumeAgentRun(socket: Socket) {
-    const agent = agents.get(socket.id);
-    if (agent) {
-      agent.resume();
-    }
-  }
+  // function resumeAgentRun(socket: Socket) {
+  //   const agent = agents.get(socket.id);
+  //   if (agent) {
+  //     agent.resume();
+  //   }
+  // }
 
   io.on("connection", (socket) => {
     console.log("a user connected");
@@ -112,12 +105,9 @@ export function initServer() {
     socket.on("user:stop", () => {
       stopAgentRun(socket);
     });
-    socket.on("user:pause", () => {
-      pauseAgentRun(socket);
-    });
-    socket.on("user:resume", () => {
-      resumeAgentRun(socket);
-    });
+    // socket.on("user:resume", () => {
+    //   resumeAgentRun(socket);
+    // });
     socket.on("disconnect", () => {
       console.log("user disconnected");
     });

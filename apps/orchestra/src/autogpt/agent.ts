@@ -1,3 +1,4 @@
+import EventEmitter from 'events';
 import { LLMChain } from "langchain/chains";
 import { BaseChatModel } from "langchain/chat_models/base.js";
 import { VectorStoreRetriever } from "langchain/vectorstores/base.js";
@@ -12,11 +13,12 @@ import {
   SystemChatMessage,
 } from "langchain/schema";
 // import { HumanInputRun } from "./tools/human/tool"; // TODO
-import { ObjectTool, FINISH_NAME } from "./schema";
+import { ObjectTool, FINISH_NAME, AutoGPTReply, AutoGPTCommand } from "./schema";
 import { TokenTextSplitter } from "langchain/text_splitter";
+import { off } from 'process';
 
 const user_input_next_step =
-"Determine which next command to use, and respond using the format specified above:";
+  "Determine which next command to use, and respond using the format specified above:";
 
 // getEmbeddingContextSize and getModelContextSize are not exported by langchain
 // copied from langchain/src/base_language/count_tokens.ts
@@ -67,6 +69,16 @@ const humanAsTool = new DynamicTool({
   func: (_input) => new Promise((resolve) => resolve("")),
 });
 
+export interface AutoGPTStepInput {
+  userMessage: string | undefined;
+  assistantReply: string;
+  result: string | undefined;
+}
+
+export interface AutoGPTStep extends AutoGPTStepInput {
+  parsed: AutoGPTReply;
+}
+
 export interface AutoGPTInput {
   aiName: string;
   aiRole: string;
@@ -77,10 +89,12 @@ export interface AutoGPTInput {
 }
 
 export class AutoGPT {
-  private running: boolean = false;
-  private paused: boolean = false;
-  private pausePromise: Promise<void> | null = null;
-  private pauseResolve: (() => void) | null = null;
+  private stopSignalReceived: boolean = false;
+
+  private pendingSteps: AutoGPTStepInput[] = [];
+  private savedSteps: AutoGPTStep[] = [];
+
+  private emitter: EventEmitter;
 
   aiName: string;
 
@@ -102,6 +116,8 @@ export class AutoGPT {
 
   // Currently not generic enough to support any text splitter.
   textSplitter: TokenTextSplitter;
+
+  abortController: AbortController;
 
   constructor({
     aiName,
@@ -134,6 +150,12 @@ export class AutoGPT {
       chunkSize,
       chunkOverlap: Math.round(chunkSize / 10),
     });
+    this.emitter = new EventEmitter();
+    this.abortController = new AbortController();
+    this.abortController.signal.addEventListener(
+      "abort",
+      this._onStop.bind(this)
+    );
   }
 
   static fromLLMAndTools(
@@ -171,107 +193,149 @@ export class AutoGPT {
     });
   }
 
-  stop(): void {
-    this.running = false;
+  public on(event: string, listener: (...args: any[]) => void): void {
+    this.emitter.on(event, listener);
   }
 
-  public pause(): void {
-    this.paused = true;
-    this.pausePromise = new Promise((resolve) => {
-      this.pauseResolve = resolve;
-    });
+  public off(event: string, listener: (...args: any[]) => void): void {
+    this.emitter.off(event, listener);
   }
 
-  public resume(): void {
-    this.paused = false;
-    if (this.pauseResolve) {
-      this.pauseResolve();
+  public stop(reason: string): void {
+    this.abortController.abort(reason);
+  }
+
+  private _onStop(): void {
+    this.stopSignalReceived = true;
+    this.emitter.emit("stop");
+    this.emitter.removeAllListeners();
+  }
+
+  public resume(
+    goals: string[],
+    steps: AutoGPTStepInput[],
+    onRequestHumanInput: (question: string) => Promise<string | undefined>
+  ): void {
+    this.pendingSteps = steps;
+    this.run(goals, onRequestHumanInput);
+  }
+
+  async getAssistantReply(
+    goals: string[],
+    user_input: string,
+    step: AutoGPTStepInput | undefined
+  ): Promise<string> {
+    if (step != null && step.assistantReply) {
+      return step.assistantReply;
     }
+    const { text: assistantReply } = await this.chain.call({
+      goals,
+      user_input,
+      memory: this.memory,
+      messages: this.fullMessageHistory,
+      signal: this.abortController.signal,
+    });
+    return assistantReply;
+  }
+
+  async getResultFromTools(
+    step: AutoGPTStepInput | undefined,
+    command: AutoGPTCommand,
+    onRequestHumanInput: (question: string) => Promise<string | undefined>
+  ): Promise<string> {
+    if (step != null && step.result) {
+      return step.result;
+    }
+    let result: string;
+    const tools = this.tools.reduce(
+      (acc, tool) => ({ ...acc, [tool.name]: tool }),
+      {} as { [key: string]: ObjectTool }
+    );
+    if (command.name in tools) {
+      let observation;
+      const tool = tools[command.name];
+      try {
+        // handle human input as a special case
+        if (tool === humanAsTool) {
+          const humanInput = await onRequestHumanInput(command.args.input);
+          // empty response or timeout
+          if (!humanInput) {
+            // throw "No human input received.";
+            // GPT-4 would just keep ask for human input after getting the error, let's just exit here
+            return "EXITING (no human input received)";
+          } else if (humanInput === "stop" || humanInput === "quit") {
+            console.log("EXITING");
+            return "EXITING";
+          } else {
+            observation = humanInput;
+          }
+        } else {
+          observation = await tool.call(command.args);
+        }
+      } catch (e) {
+        observation = `Error: ${e}`;
+      }
+      result = `Command ${tool.name} returned: ${observation}`;
+    } else if (command.name === "ERROR") {
+      result = `Error: ${command.args}. `;
+    } else {
+      result = `Unknown command '${command.name}'. Please refer to the 'COMMANDS' list for available commands and only respond in the specified JSON format.`;
+    }
+
+    return result;
+  }
+
+  private updateSavedSteps(step: AutoGPTStep, fixup: boolean = false): void {
+    if (fixup) {
+      this.savedSteps[this.savedSteps.length - 1] = step;
+    } else {
+      this.savedSteps.push(step);
+    }
+    this.emitter.emit("update", {
+      steps: this.savedSteps,
+    });
   }
 
   async run(
     goals: string[],
-    onUpdate: (data: Object) => void,
     onRequestHumanInput: (question: string) => Promise<string | undefined>
   ): Promise<string | undefined> {
-    this.running = true;
-    this.paused = false;
-
     let loopCount = 0;
-    while (this.running && loopCount < this.maxIterations) {
-      if (this.paused) {
-        await this.pausePromise;
-        this.pausePromise = null;
-        this.pauseResolve = null;
-        continue;
+    while (loopCount < this.maxIterations) {
+      if (this.stopSignalReceived) {
+        return (
+          "Stopped with reason: " +
+          (this.abortController.signal.reason ?? "Unknown")
+        );
       }
       loopCount += 1;
 
-      const { text: assistantReply } = await this.chain.call({
-        goals,
-        user_input: user_input_next_step,
-        memory: this.memory,
-        messages: this.fullMessageHistory,
-      });
+      const step = this.pendingSteps.shift();
+      const user_input = step?.userMessage ?? user_input_next_step;
+      // use existing assistant reply if available, otherwise call the LLM chain
+      const assistantReply = await this.getAssistantReply(goals, user_input, step);
 
-      // Print the assistant reply
-      console.log(assistantReply);
-      this.fullMessageHistory.push(new HumanChatMessage(user_input_next_step));
+      this.fullMessageHistory.push(new HumanChatMessage(user_input));
       this.fullMessageHistory.push(new AIChatMessage(assistantReply));
 
-      const {command, thoughts} = await this.outputParser.parse(assistantReply);
-      onUpdate({
-        type: "action:start",
-        command,
-        thoughts,
-        rawResponse: assistantReply,
-      });
-      const tools = this.tools.reduce(
-        (acc, tool) => ({ ...acc, [tool.name]: tool }),
-        {} as { [key: string]: ObjectTool }
+      const parsed = await this.outputParser.parse(
+        assistantReply
       );
+      this.updateSavedSteps({
+        userMessage: user_input,
+        assistantReply,
+        parsed,
+        result: undefined,
+      });
+      const { command } = parsed;
       if (command.name === FINISH_NAME) {
-        this.running = false;
         return command.args.response;
       }
-      let result: string;
-      if (command.name in tools) {
-        let observation;
-        const tool = tools[command.name];
-        try {
-          // handle human input as a special case
-          if (tool === humanAsTool) {
-            const humanInput = await onRequestHumanInput(command.args.input);
-            // empty response or timeout
-            if (!humanInput) {
-              // throw "No human input received.";
-              // GPT-4 would just keep ask for human input after getting the error, let's just exit here
-              return "EXITING (no human input received)";
-            } else if (humanInput === "stop" || humanInput === "quit") {
-              console.log("EXITING");
-              this.running = false;
-              return "EXITING";
-            } else {
-              observation = humanInput;
-            }
-          } else {
-            observation = await tool.call(command.args);
-          }
-        } catch (e) {
-          observation = `Error: ${e}`;
-        }
-        result = `Command ${tool.name} returned: ${observation}`;
-      } else if (command.name === "ERROR") {
-        result = `Error: ${command.args}. `;
-      } else {
-        result = `Unknown command '${command.name}'. Please refer to the 'COMMANDS' list for available commands and only respond in the specified JSON format.`;
-      }
-      onUpdate({
-        type: "action:end",
-        command,
-        rawResponse: assistantReply,
-        result,
-      });
+      // use existing result if available, otherwise call the tool
+      const result = await this.getResultFromTools(step, command, onRequestHumanInput);
+      const prevStep = this.savedSteps[this.savedSteps.length - 1];
+      prevStep.result = result;
+      this.updateSavedSteps(prevStep, true);
 
       let memoryToAdd = `Assistant Reply: ${assistantReply}\nResult: ${result} `;
       const documents = await this.textSplitter.createDocuments([memoryToAdd]);
@@ -279,7 +343,6 @@ export class AutoGPT {
       this.fullMessageHistory.push(new SystemChatMessage(result));
     }
 
-    this.running = false;
     return undefined;
   }
 }

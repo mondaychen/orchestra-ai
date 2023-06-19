@@ -58,7 +58,7 @@ export default function Page() {
         ]);
       } else if (data.type === "update") {
         console.log(data.data);
-        setActions((prev) => [...prev, data.data]);
+        setActions(data.data.steps);
       }
     });
     return () => {
