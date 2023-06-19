@@ -11,10 +11,12 @@ export type Action = {
 };
 
 export default function ActionHistory({
+  goal,
   actions,
   onPause,
   onResume,
 }: {
+  goal: string;
   actions: Action[];
   onPause: () => void;
   onResume: () => void;
@@ -28,14 +30,17 @@ export default function ActionHistory({
       onPause();
     }
   }
+  if (goal == null || goal === "") {
+    return null;
+  }
 
   return (
     <div>
-      {actions.length > 0 && (
-        <div>
-          <Button label={isPaused ? "Resume" : "Pause"} onClick={togglePause} />
-        </div>
-      )}
+      <div>
+        <h2>Agent Builder</h2>
+        <h3>Goal: {goal}</h3>
+        <Button label={isPaused ? "Resume" : "Pause"} onClick={togglePause} />
+      </div>
 
       {actions.map((action, i) => (
         <div
@@ -45,20 +50,18 @@ export default function ActionHistory({
           {action.type === "action:start" ? (
             <div className="start">
               <h3>Action: {action.command["name"]}</h3>
-              {
-                action.thoughts != null && (
-                  <div>
-                    <div className="mb-2">
-                      <b>Thoughts:</b>
-                    </div>
-                    <CodeMirror
-                      width="800px"
-                      editable={false}
-                      value={JSON.stringify(action.thoughts, null, 2)}
-                    />
+              {action.thoughts != null && (
+                <div>
+                  <div className="mb-2">
+                    <b>Thoughts:</b>
                   </div>
-                )
-              }
+                  <CodeMirror
+                    width="800px"
+                    editable={false}
+                    value={JSON.stringify(action.thoughts, null, 2)}
+                  />
+                </div>
+              )}
               <div className="mb-2">
                 <b>Command:</b>
               </div>

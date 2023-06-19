@@ -76,6 +76,10 @@ export function initServer() {
       .catch((err) => {
         console.error(err);
       });
+    socket.emit("conductor:output", {
+      type: "start",
+      goal,
+    });
   }
 
   function stopAgentRun(socket: Socket) {

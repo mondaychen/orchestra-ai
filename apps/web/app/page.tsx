@@ -21,6 +21,7 @@ import { io, Socket } from "socket.io-client";
 export default function Page() {
   const socketRef = useRef<Socket>();
   const [status, setStatus] = useState<Status>("disconnected");
+  const [goal, setGoal] = useState<string>("");
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
       type: "conductor",
@@ -40,6 +41,9 @@ export default function Page() {
       setStatus("disconnected");
     });
     socket.on("conductor:output", (data) => {
+      if (data.type === "start") {
+        setGoal(data.goal);
+      }
       if (data.type === "request-human-input") {
         setStatus("pending-input");
         setChatHistory((prev) => [
@@ -54,7 +58,7 @@ export default function Page() {
         ]);
       } else if (data.type === "update") {
         console.log(data.data);
-        setActions(prev => [...prev, data.data]);
+        setActions((prev) => [...prev, data.data]);
       }
     });
     return () => {
@@ -105,9 +109,9 @@ export default function Page() {
 
   return (
     <>
-      <h1>AutoGPT, but instructable</h1>
       <div className="grid">
-        <div className="col-fixed" style={{width: '500px'}}>
+        <div className="col-fixed" style={{ width: "500px" }}>
+          <h1>MetaAgent</h1>
           <Chatbox
             status={status}
             onStart={start}
@@ -116,7 +120,12 @@ export default function Page() {
           />
         </div>
         <div className="col">
-          <ActionHistory actions={actions} onPause={onPause} onResume={onResume}/>
+          <ActionHistory
+            goal={goal}
+            actions={actions}
+            onPause={onPause}
+            onResume={onResume}
+          />
         </div>
       </div>
     </>
