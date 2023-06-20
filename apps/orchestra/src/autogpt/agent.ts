@@ -209,6 +209,7 @@ export class AutoGPT {
     this.stopSignalReceived = true;
     this.emitter.emit("stop");
     this.emitter.removeAllListeners();
+    console.log('AutoGPT stopped.')
   }
 
   public resume(

@@ -95,7 +95,7 @@ export default function Page() {
       console.error("socket is not connected");
       return;
     }
-    socket.emit("user:pause");
+    socket.emit("user:stop");
   }
 
   function onResume() {
