@@ -1,5 +1,5 @@
 import { AutoGPT } from "./autogpt";
-import { ReadFileTool, WriteFileTool, Serper } from "langchain/tools";
+import { ReadFileTool, WriteFileTool, Serper, RequestsGetTool } from "langchain/tools";
 import { NodeFileStore } from "langchain/stores/file/node";
 import { HNSWLib } from "langchain/vectorstores/hnswlib";
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
@@ -10,6 +10,9 @@ const store = new NodeFileStore("tmp_file_store");
 const tools = [
   new ReadFileTool({ store }),
   new WriteFileTool({ store }),
+  new RequestsGetTool({}, {
+    maxOutputLength: 99999,
+  }),
   new Serper(process.env.SERPER_API_KEY, {
     hl: "en",
     gl: "us",

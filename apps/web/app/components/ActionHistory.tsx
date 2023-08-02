@@ -58,7 +58,7 @@ export default function ActionHistory({
                   </div>
                   <CodeMirror
                     width="800px"
-                    editable={false}
+                    editable={true}
                     value={JSON.stringify(action.parsed.thoughts, null, 2)}
                   />
                 </div>
@@ -68,7 +68,7 @@ export default function ActionHistory({
               </div>
               <CodeMirror
                 width="800px"
-                editable={false}
+                editable={true}
                 value={JSON.stringify(action.parsed.command, null, 2)}
               />
             </div>
