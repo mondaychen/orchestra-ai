@@ -9,7 +9,8 @@
   "dependencies": {
     "dotenv": "^16.1.4",
     "hnswlib-node": "^1.4.2",
-    "langchain": "^0.0.95",
+    "langchain": "^0.0.122",
+    "cheerio": "^1.0.0-rc.12",
     "socket.io": "^4.6.2",
     "typeorm": "^0.3.16",
     "zod-to-json-schema": "^3.21.1"

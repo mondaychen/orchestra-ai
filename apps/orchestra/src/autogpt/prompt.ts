@@ -1,9 +1,9 @@
 import { BaseChatPromptTemplate } from "langchain/prompts";
 import {
-  BaseChatMessage,
-  HumanChatMessage,
+  BaseMessage,
+  HumanMessage,
   PartialValues,
-  SystemChatMessage,
+  SystemMessage,
 } from "langchain/schema";
 import { VectorStoreRetriever } from "langchain/vectorstores/base.js";
 import { ObjectTool } from "./schema";
@@ -47,9 +47,10 @@ export class AutoGPTPrompt
   }
 
   constructFullPrompt(goals: string[]): string {
-    const promptStart = `Play to your strengths as an LLM and pursue simple strategies with no legal complications.
-            Use your best judgement on when to make decisions independently or seek user assistance.
-            If you have completed all your tasks, make sure to use the "finish" command.`;
+    const promptStart = `Please always follow the response format specified at the end of this message, including your first response.
+    Play to your strengths as an LLM and pursue simple strategies with no legal complications.
+    Use your best judgement on when to make decisions independently or seek user assistance.
+    If you have completed all your tasks, make sure to use the "finish" command.`;
 
     let fullPrompt = `You are ${this.aiName}, ${this.aiRole}\n${promptStart}\n\nGOALS:\n\n`;
     goals.forEach((goal, index) => {
@@ -68,11 +69,11 @@ export class AutoGPTPrompt
   }: {
     goals: string[];
     memory: VectorStoreRetriever;
-    messages: BaseChatMessage[];
+    messages: InstanceType<typeof BaseMessage>[];
     user_input: string;
   }) {
-    const basePrompt = new SystemChatMessage(this.constructFullPrompt(goals));
-    const timePrompt = new SystemChatMessage(
+    const basePrompt = new SystemMessage(this.constructFullPrompt(goals));
+    const timePrompt = new SystemMessage(
       `The current time and date is ${new Date().toLocaleString()}`
     );
     const usedTokens =
@@ -98,10 +99,10 @@ export class AutoGPTPrompt
     const contentFormat = `This reminds you of these events from your past:\n${relevantMemory.join(
       "\n"
     )}\n\n`;
-    const memoryMessage = new SystemChatMessage(contentFormat);
+    const memoryMessage = new SystemMessage(contentFormat);
     const usedTokensWithMemory =
       (await usedTokens) + (await this.tokenCounter(memoryMessage.text));
-    const historicalMessages: BaseChatMessage[] = [];
+    const historicalMessages: InstanceType<typeof BaseMessage>[] = [];
 
     for (const message of previousMessages.slice(-10).reverse()) {
       const messageTokens = await this.tokenCounter(message.text);
@@ -111,8 +112,8 @@ export class AutoGPTPrompt
       historicalMessages.unshift(message);
     }
 
-    const inputMessage = new HumanChatMessage(user_input);
-    const messages: BaseChatMessage[] = [
+    const inputMessage = new HumanMessage(user_input);
+    const messages: InstanceType<typeof BaseMessage>[] = [
       basePrompt,
       timePrompt,
       memoryMessage,

@@ -7,15 +7,14 @@ import { Tool, DynamicTool } from "langchain/tools";
 import { AutoGPTOutputParser } from "./output_parser";
 import { AutoGPTPrompt } from "./prompt";
 import {
-  AIChatMessage,
-  BaseChatMessage,
-  HumanChatMessage,
-  SystemChatMessage,
+  AIMessage,
+  BaseMessage,
+  HumanMessage,
+  SystemMessage,
 } from "langchain/schema";
 // import { HumanInputRun } from "./tools/human/tool"; // TODO
 import { ObjectTool, FINISH_NAME, AutoGPTReply, AutoGPTCommand } from "./schema";
 import { TokenTextSplitter } from "langchain/text_splitter";
-import { off } from 'process';
 
 const user_input_next_step =
   "Determine which next command to use, and respond using the format specified above:";
@@ -100,7 +99,7 @@ export class AutoGPT {
 
   memory: VectorStoreRetriever;
 
-  fullMessageHistory: BaseChatMessage[];
+  fullMessageHistory: InstanceType<typeof BaseMessage>[];
 
   nextActionCount: number;
 
@@ -316,8 +315,8 @@ export class AutoGPT {
       // use existing assistant reply if available, otherwise call the LLM chain
       const assistantReply = await this.getAssistantReply(goals, user_input, step);
 
-      this.fullMessageHistory.push(new HumanChatMessage(user_input));
-      this.fullMessageHistory.push(new AIChatMessage(assistantReply));
+      this.fullMessageHistory.push(new HumanMessage(user_input));
+      this.fullMessageHistory.push(new AIMessage(assistantReply));
 
       const parsed = await this.outputParser.parse(
         assistantReply
@@ -341,7 +340,7 @@ export class AutoGPT {
       let memoryToAdd = `Assistant Reply: ${assistantReply}\nResult: ${result} `;
       const documents = await this.textSplitter.createDocuments([memoryToAdd]);
       await this.memory.addDocuments(documents);
-      this.fullMessageHistory.push(new SystemChatMessage(result));
+      this.fullMessageHistory.push(new SystemMessage(result));
     }
 
     return undefined;
