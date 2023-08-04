@@ -61,7 +61,7 @@ export class UrlFinder extends Tool {
 
     const json = await res.json();
 
-    if (json.organic) {
+    if (json.organic && json.organic.length > 0) {
       return json.organic.map((result: any) => result.link).join(",");
     }
 
