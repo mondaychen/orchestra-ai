@@ -17,7 +17,7 @@ import { ObjectTool, FINISH_NAME, AutoGPTReply, AutoGPTCommand } from "./schema"
 import { TokenTextSplitter } from "langchain/text_splitter";
 
 const user_input_next_step =
-  "Determine which next command to use, and respond using the format specified above:";
+  "Determine which next command to use, and respond using the json format specified above:";
 
 // getEmbeddingContextSize and getModelContextSize are not exported by langchain
 // copied from langchain/src/base_language/count_tokens.ts
