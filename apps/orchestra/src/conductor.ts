@@ -1,7 +1,13 @@
 import { AutoGPT } from "./autogpt";
-import { ReadFileTool, WriteFileTool, Serper } from "langchain/tools";
+import {
+  ReadFileTool,
+  WriteFileTool,
+  Serper,
+  GoogleCustomSearch,
+} from "langchain/tools";
 import { WebBrowser } from "langchain/tools/webbrowser";
 import { WebScraper } from "./tools/web_scraper";
+import { UrlFinder } from "./tools/url_finder";
 import { NodeFileStore } from "langchain/stores/file/node";
 import { HNSWLib } from "langchain/vectorstores/hnswlib";
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
@@ -13,10 +19,14 @@ const tools = [
   new ReadFileTool({ store }),
   new WriteFileTool({ store }),
   new WebScraper(),
-  new Serper(process.env.SERPER_API_KEY, {
+  new UrlFinder(process.env.SERPER_API_KEY, {
     hl: "en",
     gl: "us",
   }),
+  // new Serper(process.env.SERPER_API_KEY, {
+  //   hl: "en",
+  //   gl: "us",
+  // }),
 ];
 
 export function createAgent() {
