@@ -146,7 +146,7 @@ export default function ActionHistory({
   }
 
   function removeAction(index: number) {
-    const newActions = [...actionsRef.current];
+    const newActions = [...localActions];
     newActions.splice(index, 1);
     setLocalActions(newActions);
   }
@@ -167,7 +167,7 @@ export default function ActionHistory({
           key={i}
           editable={isPaused}
           onChange={(action: Action) => {
-            const newActions = [...actionsRef.current];
+            const newActions = [...localActions];
             newActions[i] = action;
             setLocalActions(newActions);
           }}
