@@ -31,6 +31,7 @@ export default function Chatbox({
 
   function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setInput("");
     if (status === "idle") {
       onStart(input);
     } else if (status === "pending-input") {

@@ -98,13 +98,16 @@ export default function Page() {
     socket.emit("user:stop");
   }
 
-  function onResume() {
+  function onResume(actions: Action[]) {
     const socket = socketRef.current;
     if (socket == null || socket.disconnected) {
       console.error("socket is not connected");
       return;
     }
-    socket.emit("user:resume");
+    socket.emit("user:resume", {
+      steps: actions,
+      goal,
+    });
   }
 
   return (

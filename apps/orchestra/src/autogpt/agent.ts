@@ -204,20 +204,16 @@ export class AutoGPT {
     this.abortController.abort(reason);
   }
 
+  // we can effectively resume agent by setting pending steps and re-running
+  public setPendingSteps(steps: AutoGPTStepInput[]): void {
+    this.pendingSteps = steps;
+  }
+
   private _onStop(): void {
     this.stopSignalReceived = true;
     this.emitter.emit("stop");
     this.emitter.removeAllListeners();
     console.log('AutoGPT stopped.')
-  }
-
-  public resume(
-    goals: string[],
-    steps: AutoGPTStepInput[],
-    onRequestHumanInput: (question: string) => Promise<string | undefined>
-  ): void {
-    this.pendingSteps = steps;
-    this.run(goals, onRequestHumanInput);
   }
 
   async getAssistantReply(

@@ -13,6 +13,8 @@ import { HNSWLib } from "langchain/vectorstores/hnswlib";
 import { OpenAIEmbeddings } from "langchain/embeddings/openai";
 import { ChatOpenAI } from "langchain/chat_models/openai";
 
+export type { AutoGPTStepInput } from "./autogpt";
+
 const store = new NodeFileStore("tmp_file_store");
 
 const tools = [

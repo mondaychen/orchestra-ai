@@ -1,6 +1,6 @@
 import { Server, Socket } from "socket.io";
 
-import { createAgent } from "./conductor";
+import { createAgent, AutoGPTStepInput } from "./conductor";
 import PlannerGPT from "./planner/planner";
 
 const agents = new Map<string, ReturnType<typeof createAgent>>();
@@ -53,7 +53,7 @@ export function initServer() {
     }
   }
 
-  function run(socket: Socket, goal: string) {
+  function run(socket: Socket, goal: string, stepsInput?: AutoGPTStepInput[]) {
     if (agents.has(socket.id)) {
       console.warn("Agent already running for socket id: ", socket.id);
       return;
@@ -62,6 +62,9 @@ export function initServer() {
     const agent = createAgent();
     agents.set(socket.id, agent);
     agent.on("update", (data) => onUpdate(socket, data));
+    if (stepsInput) {
+      agent.setPendingSteps(stepsInput);
+    }
     agent
       .run([goal], (message: string) => onRequestHumanInput(message, socket))
       .then((response) => {
@@ -90,12 +93,9 @@ export function initServer() {
     }
   }
 
-  // function resumeAgentRun(socket: Socket) {
-  //   const agent = agents.get(socket.id);
-  //   if (agent) {
-  //     agent.resume();
-  //   }
-  // }
+  function resumeAgentRun(socket: Socket, data: any) {
+    run(socket, data.goal, data.steps);
+  }
 
   function plannerStart(socket: Socket, text: string) {
     if (planners.has(socket.id)) {
@@ -134,24 +134,24 @@ export function initServer() {
 
   io.on("connection", (socket) => {
     console.log("a user connected");
-    socket.on("user:plan_start", (text) => {
-      plannerClarify(socket, text);
-    });
-    socket.on("user:plan_clarify", (text) => {
-      plannerStart(socket, text);
-    });
-    socket.on("user:plan_polish", (text) => {
-      plannerPolish(socket, text);
-    });
+    // socket.on("user:plan_start", (text) => {
+    //   plannerClarify(socket, text);
+    // });
+    // socket.on("user:plan_clarify", (text) => {
+    //   plannerStart(socket, text);
+    // });
+    // socket.on("user:plan_polish", (text) => {
+    //   plannerPolish(socket, text);
+    // });
     socket.on("user:input", (msg) => {
       run(socket, msg);
     });
     socket.on("user:stop", () => {
       stopAgentRun(socket);
     });
-    // socket.on("user:resume", () => {
-    //   resumeAgentRun(socket);
-    // });
+    socket.on("user:resume", (data) => {
+      resumeAgentRun(socket, data);
+    });
     socket.on("disconnect", () => {
       console.log("user disconnected");
     });

@@ -73,6 +73,7 @@ export class AutoGPTPrompt
     user_input: string;
   }) {
     const basePrompt = new SystemMessage(this.constructFullPrompt(goals));
+    // TODO: make these configurable
     const timePrompt = new SystemMessage(
       `The current time and date is ${new Date().toLocaleString()}`
     );
